@@ -1,7 +1,9 @@
 import { ErrorDetails, ErrorTypes } from '../errors';
 import { getLoaderConfigWithoutReties } from '../utils/error-helper';
+import { applyL402Header } from '../utils/l402-helpers';
 import type { BaseSegment, Fragment, Part } from './fragment';
 import type { HlsConfig } from '../config';
+import type Hls from '../hls';
 import type {
   ErrorData,
   FragLoadedData,
@@ -19,11 +21,13 @@ const MIN_CHUNK_SIZE = Math.pow(2, 17); // 128kb
 
 export default class FragmentLoader {
   private readonly config: HlsConfig;
+  private readonly hls: Hls;
   private loader: Loader<FragmentLoaderContext> | null = null;
   private partLoadTimeout: number = -1;
 
-  constructor(config: HlsConfig) {
+  constructor(config: HlsConfig, hls: Hls) {
     this.config = config;
+    this.hls = hls;
   }
 
   destroy() {
@@ -113,10 +117,14 @@ export default class FragmentLoader {
         },
         onError: (response, context, networkDetails, stats) => {
           this.resetLoader(frag, loader);
+          const errorDetails =
+            response.code === 402
+              ? ErrorDetails.L402_PAYMENT_REQUIRED
+              : ErrorDetails.FRAG_LOAD_ERROR;
           reject(
             new LoadError({
               type: ErrorTypes.NETWORK_ERROR,
-              details: ErrorDetails.FRAG_LOAD_ERROR,
+              details: errorDetails,
               fatal: false,
               frag,
               response: { url, data: undefined, ...response },
@@ -164,6 +172,7 @@ export default class FragmentLoader {
             networkDetails,
           });
       }
+      applyL402Header(loaderContext, this.hls.l402Token);
       loader.load(loaderContext, loaderConfig, callbacks);
     });
   }
@@ -206,6 +215,7 @@ export default class FragmentLoader {
       };
       // Assign part stats to the loader's stats reference
       part.stats = loader.stats;
+      applyL402Header(loaderContext, this.hls.l402Token);
       loader.load(loaderContext, loaderConfig, {
         onSuccess: (response, stats, context, networkDetails) => {
           this.resetLoader(frag, loader);
@@ -221,10 +231,14 @@ export default class FragmentLoader {
         },
         onError: (response, context, networkDetails, stats) => {
           this.resetLoader(frag, loader);
+          const errorDetails =
+            response.code === 402
+              ? ErrorDetails.L402_PAYMENT_REQUIRED
+              : ErrorDetails.FRAG_LOAD_ERROR;
           reject(
             new LoadError({
               type: ErrorTypes.NETWORK_ERROR,
-              details: ErrorDetails.FRAG_LOAD_ERROR,
+              details: errorDetails,
               fatal: false,
               frag,
               part,

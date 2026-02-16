@@ -102,6 +102,10 @@ export enum ErrorDetails {
   ATTACH_MEDIA_ERROR = 'attachMediaError',
   // Triggered when MediaSource enters an invalid state that requires a reset
   MEDIA_SOURCE_REQUIRES_RESET = 'mediaSourceRequiresReset',
+  // Identifier for a 402 Payment Required response with L402 challenge - data: { url: faulty URL, response: { code: 402 } }
+  L402_PAYMENT_REQUIRED = 'l402PaymentRequired',
+  // Identifier for an expired L402 token - data: { url: faulty URL }
+  L402_TOKEN_EXPIRED = 'l402TokenExpired',
   // Uncategorized error
   UNKNOWN = 'unknown',
 }

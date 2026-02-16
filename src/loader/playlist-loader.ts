@@ -15,6 +15,10 @@ import {
   areCodecsMediaSourceSupported,
   sampleEntryCodesISO,
 } from '../utils/codecs';
+import {
+  applyL402Header,
+  getL402ChallengeFromNetworkDetails,
+} from '../utils/l402-helpers';
 import { computeReloadInterval } from '../utils/level-helper';
 import type { LevelDetails } from './level-details';
 import type { LoaderConfig, RetryConfig } from '../config';
@@ -380,7 +384,8 @@ class PlaylistLoader implements NetworkComponentAPI {
       },
     };
 
-    // logger.debug(`[playlist-loader]: Calling internal loader delegate for URL: ${context.url}`);
+    // Apply L402 Authorization header if token is available
+    applyL402Header(context, this.hls.l402Token);
 
     loader.load(context, loaderConfig, loaderCallbacks);
   }
@@ -630,6 +635,52 @@ class PlaylistLoader implements NetworkComponentAPI {
     response: { code: number; text: string } | undefined,
     stats: LoaderStats,
   ): void {
+    const hls = this.hls;
+
+    // Intercept HTTP 402 Payment Required for L402 protocol
+    if (!timeout && response?.code === 402) {
+      const loader = this.getInternalLoader(context);
+      if (loader) {
+        this.resetInternalLoader(context.type);
+      }
+      const challenge = getL402ChallengeFromNetworkDetails(networkDetails);
+      if (challenge) {
+        const levelIndex =
+          context.type === PlaylistContextType.LEVEL
+            ? (context.level ?? -1)
+            : -1;
+        hls.trigger(Events.L402_PAYMENT_REQUIRED, {
+          macaroon: challenge.macaroon,
+          invoice: challenge.invoice,
+          url: context.url,
+          level: levelIndex >= 0 ? levelIndex : undefined,
+          networkDetails,
+        });
+        if (levelIndex >= 0) {
+          hls.setL402PendingRetryLevel(levelIndex);
+        }
+      }
+      hls.trigger(Events.ERROR, {
+        type: ErrorTypes.NETWORK_ERROR,
+        details: ErrorDetails.L402_PAYMENT_REQUIRED,
+        fatal: false,
+        url: context.url,
+        loader,
+        context,
+        error: new Error(
+          `L402 Payment Required for ${context.type}: ${context.url}`,
+        ),
+        networkDetails,
+        stats,
+        response: {
+          url: context.url,
+          data: undefined as any,
+          ...response,
+        },
+      });
+      return;
+    }
+
     let message = `A network ${
       timeout
         ? 'timeout'
@@ -644,7 +695,7 @@ class PlaylistLoader implements NetworkComponentAPI {
       message += ` id: ${context.id} group-id: "${context.groupId}"`;
     }
     const error = new Error(message);
-    this.hls.logger.warn(`[playlist-loader]: ${message}`);
+    hls.logger.warn(`[playlist-loader]: ${message}`);
     let details = ErrorDetails.UNKNOWN;
     let fatal = false;
 
@@ -701,7 +752,7 @@ class PlaylistLoader implements NetworkComponentAPI {
       errorData.response = { url, data: undefined as any, ...response };
     }
 
-    this.hls.trigger(Events.ERROR, errorData);
+    hls.trigger(Events.ERROR, errorData);
   }
 
   private handlePlaylistLoaded(

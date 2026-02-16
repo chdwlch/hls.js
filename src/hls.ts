@@ -63,6 +63,7 @@ import type { BufferInfo, BufferTimeRange } from './utils/buffer-helper';
 import type Cues from './utils/cues';
 import type EwmaBandWidthEstimator from './utils/ewma-bandwidth-estimator';
 import type FetchLoader from './utils/fetch-loader';
+import type { L402Token } from './utils/l402-helpers';
 import type { MediaDecodingInfo } from './utils/mediacapabilities-helper';
 import type XhrLoader from './utils/xhr-loader';
 
@@ -110,6 +111,8 @@ export default class Hls implements HlsEventEmitter {
   private _media: HTMLMediaElement | null = null;
   private _url: string | null = null;
   private _sessionId?: string;
+  private _l402Token: L402Token | null = null;
+  private _l402PendingRetryLevel: number = -1;
   private triggeringException?: boolean;
   private started: boolean = false;
 
@@ -1266,6 +1269,58 @@ export default class Hls implements HlsEventEmitter {
       audioTracksByGroup,
       navigator.mediaCapabilities,
     );
+  }
+
+  /**
+   * Get the currently active L402 token, or null if none is set.
+   */
+  get l402Token(): L402Token | null {
+    return this._l402Token;
+  }
+
+  /**
+   * Set an L402 token for accessing priced HLS variants.
+   * After setting the token, any pending level load that was blocked by a 402 response will be retried.
+   * @param credential - The L402 credential string (macaroon:preimage)
+   * @param maxBandwidth - The maximum bandwidth (in bps) this token grants access to
+   * @param expiry - Optional token expiry timestamp in milliseconds since epoch
+   */
+  setL402Token(
+    credential: string,
+    maxBandwidth: number,
+    expiry?: number,
+  ): void {
+    this._l402Token = { credential, maxBandwidth, expiry };
+    this.trigger(Events.L402_TOKEN_UPDATED, {
+      credential,
+      maxBandwidth,
+      expiry,
+    });
+    if (this._l402PendingRetryLevel >= 0) {
+      const retryLevel = this._l402PendingRetryLevel;
+      this._l402PendingRetryLevel = -1;
+      this.levelController.level = retryLevel;
+    }
+  }
+
+  /**
+   * Clear the active L402 token.
+   */
+  clearL402Token(): void {
+    this._l402Token = null;
+    this._l402PendingRetryLevel = -1;
+    this.trigger(Events.L402_TOKEN_UPDATED, {
+      credential: null,
+      maxBandwidth: 0,
+    });
+  }
+
+  /**
+   * Set a pending retry level for L402 payment flow. Used internally.
+   * @internal
+   */
+  setL402PendingRetryLevel(level: number): void {
+    this._l402PendingRetryLevel = level;
   }
 }
 

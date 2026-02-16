@@ -549,3 +549,17 @@ export interface InterstitialsPrimaryResumed {
   schedule: InterstitialScheduleItem[];
   scheduleIndex: number;
 }
+
+export interface L402PaymentRequiredData {
+  macaroon: string;
+  invoice: string;
+  url: string;
+  level?: number;
+  networkDetails: NullableNetworkDetails;
+}
+
+export interface L402TokenUpdatedData {
+  credential: string | null;
+  maxBandwidth: number;
+  expiry?: number;
+}

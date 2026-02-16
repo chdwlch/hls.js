@@ -10,6 +10,7 @@ export interface LevelParsed extends CodecsParsed {
   height?: number;
   id?: number;
   name: string;
+  price?: number;
   supplemental?: CodecsParsed;
   url: string;
   width?: number;
@@ -115,6 +116,7 @@ export class Level {
   public readonly id: number;
   public readonly name: string;
   public readonly supplemental: CodecsParsed | undefined;
+  public readonly price: number;
   public readonly videoCodec: string | undefined;
   public readonly width: number;
   public details?: LevelDetails;
@@ -156,6 +158,7 @@ export class Level {
         this.codecSet += `,${supplementalVideo.substring(0, 4)}`;
       }
     }
+    this.price = 'price' in data ? data.price || 0 : 0;
     this.addGroupId('audio', data.attrs.AUDIO);
     this.addGroupId('text', data.attrs.SUBTITLES);
   }

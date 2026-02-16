@@ -12,6 +12,7 @@ import {
   shouldRetry,
 } from '../utils/error-helper';
 import { arrayToHex } from '../utils/hex';
+import { getL402ChallengeFromNetworkDetails } from '../utils/l402-helpers';
 import { Logger } from '../utils/logger';
 import type { RetryConfig } from '../config';
 import type { LevelKey } from '../hls';
@@ -142,6 +143,33 @@ export default class ErrorController
     const context = data.context;
 
     switch (data.details) {
+      case ErrorDetails.L402_PAYMENT_REQUIRED:
+      case ErrorDetails.L402_TOKEN_EXPIRED: {
+        // L402 errors are non-fatal and should not trigger level switch or retry.
+        // The L402_PAYMENT_REQUIRED event is emitted by playlist-loader for playlist 402s.
+        // For fragment 402s, emit it here from the error data.
+        if (
+          data.details === ErrorDetails.L402_PAYMENT_REQUIRED &&
+          data.frag &&
+          data.networkDetails
+        ) {
+          const challenge = getL402ChallengeFromNetworkDetails(
+            data.networkDetails,
+          );
+          if (challenge) {
+            hls.trigger(Events.L402_PAYMENT_REQUIRED, {
+              macaroon: challenge.macaroon,
+              invoice: challenge.invoice,
+              url: data.url || data.frag.url,
+              level: data.frag.level,
+              networkDetails: data.networkDetails,
+            });
+            hls.setL402PendingRetryLevel(data.frag.level);
+          }
+        }
+        data.errorAction = createDoNothingErrorAction();
+        return;
+      }
       case ErrorDetails.FRAG_LOAD_ERROR:
       case ErrorDetails.FRAG_LOAD_TIMEOUT:
       case ErrorDetails.KEY_LOAD_ERROR:

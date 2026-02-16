@@ -40,6 +40,8 @@ import type {
   InterstitialsUpdatedData,
   KeyLoadedData,
   KeyLoadingData,
+  L402PaymentRequiredData,
+  L402TokenUpdatedData,
   LevelLoadedData,
   LevelLoadingData,
   LevelPTSUpdatedData,
@@ -220,6 +222,10 @@ export enum Events {
   PLAYOUT_LIMIT_REACHED = 'hlsPlayoutLimitReached',
   // Event DateRange cue "enter" event dispatched
   EVENT_CUE_ENTER = 'hlsEventCueEnter',
+  // Fired when a 402 Payment Required response is received with L402 challenge
+  L402_PAYMENT_REQUIRED = 'hlsL402PaymentRequired',
+  // Fired when an L402 token is set or cleared
+  L402_TOKEN_UPDATED = 'hlsL402TokenUpdated',
 }
 
 /**
@@ -496,6 +502,14 @@ export interface HlsListeners {
     data: {},
   ) => void;
   [Events.EVENT_CUE_ENTER]: (event: Events.EVENT_CUE_ENTER, data: {}) => void;
+  [Events.L402_PAYMENT_REQUIRED]: (
+    event: Events.L402_PAYMENT_REQUIRED,
+    data: L402PaymentRequiredData,
+  ) => void;
+  [Events.L402_TOKEN_UPDATED]: (
+    event: Events.L402_TOKEN_UPDATED,
+    data: L402TokenUpdatedData,
+  ) => void;
 }
 export interface HlsEventEmitter {
   on<E extends keyof HlsListeners, Context = undefined>(

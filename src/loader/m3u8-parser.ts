@@ -153,6 +153,11 @@ export default class M3U8Parser {
           setCodecs(supplementalCodecs, level.supplemental);
         }
 
+        const priceMatch = result[0].match(/#EXT-X-PRICE:(\d+)/);
+        if (priceMatch) {
+          level.price = parseInt(priceMatch[1], 10);
+        }
+
         if (!level.unknownCodecs?.length) {
           levelsWithKnownCodecs.push(level);
         }

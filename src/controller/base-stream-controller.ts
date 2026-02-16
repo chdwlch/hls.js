@@ -138,7 +138,7 @@ export default class BaseStreamController
     super(logPrefix, hls.logger);
     this.playlistType = playlistType;
     this.hls = hls;
-    this.fragmentLoader = new FragmentLoader(hls.config);
+    this.fragmentLoader = new FragmentLoader(hls.config, hls);
     this.keyLoader = keyLoader;
     this.fragmentTracker = fragmentTracker;
     this.config = hls.config;

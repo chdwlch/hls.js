@@ -904,6 +904,16 @@ class AbrController extends Logger implements AbrComponentAPI {
         }
       }
 
+      // Skip priced levels that exceed the L402 token's max bandwidth
+      const l402Token = this.hls.l402Token;
+      if (
+        levelInfo.price > 0 &&
+        (!l402Token || levelInfo.bitrate > l402Token.maxBandwidth)
+      ) {
+        levelsSkipped.push(i);
+        continue;
+      }
+
       // skip candidates which change codec-family or video-range,
       // and which decrease or increase frame-rate for up and down-switch respectfully
       if (

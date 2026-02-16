@@ -23,9 +23,9 @@ describe('FragmentLoader tests', function () {
   let networkDetails;
 
   beforeEach(function () {
-    fragmentLoader = new FragmentLoader(
-      mergeConfig(hlsDefaultConfig, { loader: MockXhr }, logger),
-    );
+    const config = mergeConfig(hlsDefaultConfig, { loader: MockXhr }, logger);
+    const mockHls = { config, l402Token: null } as any;
+    fragmentLoader = new FragmentLoader(config, mockHls);
     frag = new Fragment(PlaylistLevelType.MAIN, '');
     frag.url = 'foo';
     levelDetails = new LevelDetails('');
