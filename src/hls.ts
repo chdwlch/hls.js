@@ -63,6 +63,7 @@ import type { BufferInfo, BufferTimeRange } from './utils/buffer-helper';
 import type Cues from './utils/cues';
 import type EwmaBandWidthEstimator from './utils/ewma-bandwidth-estimator';
 import type FetchLoader from './utils/fetch-loader';
+import { parseL402Credential } from './utils/l402-helpers';
 import type { L402Token } from './utils/l402-helpers';
 import type { MediaDecodingInfo } from './utils/mediacapabilities-helper';
 import type XhrLoader from './utils/xhr-loader';
@@ -113,6 +114,8 @@ export default class Hls implements HlsEventEmitter {
   private _sessionId?: string;
   private _l402Token: L402Token | null = null;
   private _l402PendingRetryLevel: number = -1;
+  private _l402PendingMacaroon: string | null = null;
+  private _l402Duration: number = 0;
   private triggeringException?: boolean;
   private started: boolean = false;
 
@@ -1279,18 +1282,35 @@ export default class Hls implements HlsEventEmitter {
   }
 
   /**
-   * Set an L402 token for accessing priced HLS variants.
-   * After setting the token, any pending level load that was blocked by a 402 response will be retried.
-   * @param credential - The L402 credential string (macaroon:preimage)
-   * @param maxBandwidth - The maximum bandwidth (in bps) this token grants access to
-   * @param expiry - Optional token expiry timestamp in milliseconds since epoch
+   * Get or set the L402 purchase duration in seconds. When set to a value > 0,
+   * hls.js appends a `?d=<seconds>` query parameter to priced variant playlist
+   * requests. The server uses this to calculate the expiration caveat in the
+   * macaroon. The client can change this value at any time (e.g. to request a
+   * longer or shorter renewal period).
    */
-  setL402Token(
-    credential: string,
-    maxBandwidth: number,
-    expiry?: number,
-  ): void {
-    this._l402Token = { credential, maxBandwidth, expiry };
+  get l402Duration(): number {
+    return this._l402Duration;
+  }
+
+  set l402Duration(seconds: number) {
+    this._l402Duration = Math.max(0, Math.floor(seconds));
+  }
+
+  /**
+   * Set an L402 token for accessing priced HLS variants.
+   * The maxBandwidth and expiry are parsed automatically from the macaroon's
+   * caveats (max_bandwidth and expiration). After setting the token, any
+   * pending level load that was blocked by a 402 response will be retried.
+   * @param credential - The L402 credential string (macaroon:preimage)
+   */
+  setL402Token(credential: string): void {
+    const { maxBandwidth, expiry } = parseL402Credential(credential);
+    this._l402Token = {
+      credential,
+      maxBandwidth,
+      expiry: expiry || undefined,
+    };
+    this._l402PendingMacaroon = null;
     this.trigger(Events.L402_TOKEN_UPDATED, {
       credential,
       maxBandwidth,
@@ -1304,11 +1324,30 @@ export default class Hls implements HlsEventEmitter {
   }
 
   /**
+   * Set the L402 preimage after paying a Lightning invoice. hls.js combines the
+   * preimage with the macaroon from the most recent L402_PAYMENT_REQUIRED challenge
+   * to construct the full credential. This is the simplest way for a client to
+   * complete the payment flow.
+   * @param preimage - The 32-byte hex preimage proving payment of the invoice
+   */
+  setL402Preimage(preimage: string): void {
+    if (!this._l402PendingMacaroon) {
+      this.logger.warn(
+        '[hls] setL402Preimage called but no pending macaroon from a 402 challenge',
+      );
+      return;
+    }
+    const credential = `${this._l402PendingMacaroon}:${preimage}`;
+    this.setL402Token(credential);
+  }
+
+  /**
    * Clear the active L402 token.
    */
   clearL402Token(): void {
     this._l402Token = null;
     this._l402PendingRetryLevel = -1;
+    this._l402PendingMacaroon = null;
     this.trigger(Events.L402_TOKEN_UPDATED, {
       credential: null,
       maxBandwidth: 0,
@@ -1316,10 +1355,28 @@ export default class Hls implements HlsEventEmitter {
   }
 
   /**
-   * Set a pending retry level for L402 payment flow. Used internally.
+   * Check if the current L402 token has expired and clear it if so.
+   * Called internally by loaders before each request. When the token is cleared
+   * due to expiry, the next request to a priced level will trigger a fresh 402
+   * challenge, allowing the client to pay for a renewal.
    * @internal
    */
-  setL402PendingRetryLevel(level: number): void {
+  checkL402TokenExpiry(): void {
+    if (this._l402Token?.expiry && Date.now() > this._l402Token.expiry) {
+      this.logger.log(
+        '[hls] L402 token expired, clearing for renewal',
+      );
+      this.clearL402Token();
+    }
+  }
+
+  /**
+   * Store the challenge macaroon and pending retry level from a 402 response.
+   * Used internally by playlist-loader and error-controller.
+   * @internal
+   */
+  setL402PendingChallenge(macaroon: string, level: number): void {
+    this._l402PendingMacaroon = macaroon;
     this._l402PendingRetryLevel = level;
   }
 }

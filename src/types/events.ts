@@ -556,6 +556,8 @@ export interface L402PaymentRequiredData {
   url: string;
   level?: number;
   networkDetails: NullableNetworkDetails;
+  maxBandwidth: number;
+  expiry: number;
 }
 
 export interface L402TokenUpdatedData {

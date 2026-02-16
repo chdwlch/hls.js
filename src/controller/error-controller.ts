@@ -163,8 +163,10 @@ export default class ErrorController
               url: data.url || data.frag.url,
               level: data.frag.level,
               networkDetails: data.networkDetails,
+              maxBandwidth: challenge.maxBandwidth,
+              expiry: challenge.expiry,
             });
-            hls.setL402PendingRetryLevel(data.frag.level);
+            hls.setL402PendingChallenge(challenge.macaroon, data.frag.level);
           }
         }
         data.errorAction = createDoNothingErrorAction();

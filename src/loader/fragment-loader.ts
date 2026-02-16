@@ -172,6 +172,7 @@ export default class FragmentLoader {
             networkDetails,
           });
       }
+      this.hls.checkL402TokenExpiry();
       applyL402Header(loaderContext, this.hls.l402Token);
       loader.load(loaderContext, loaderConfig, callbacks);
     });
@@ -215,6 +216,7 @@ export default class FragmentLoader {
       };
       // Assign part stats to the loader's stats reference
       part.stats = loader.stats;
+      this.hls.checkL402TokenExpiry();
       applyL402Header(loaderContext, this.hls.l402Token);
       loader.load(loaderContext, loaderConfig, {
         onSuccess: (response, stats, context, networkDetails) => {

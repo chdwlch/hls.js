@@ -177,13 +177,20 @@ class PlaylistLoader implements NetworkComponentAPI {
 
   private onLevelLoading(event: Events.LEVEL_LOADING, data: LevelLoadingData) {
     const { id, level, pathwayId, url, deliveryDirectives, levelInfo } = data;
+    // Append ?d=<seconds> duration parameter to priced variant playlist requests
+    let levelUrl = url;
+    const l402Duration = this.hls.l402Duration;
+    if (l402Duration > 0 && levelInfo && levelInfo.price > 0) {
+      const separator = levelUrl.indexOf('?') === -1 ? '?' : '&';
+      levelUrl = `${levelUrl}${separator}d=${l402Duration}`;
+    }
     this.load({
       id,
       level,
       pathwayId,
       responseType: 'text',
       type: PlaylistContextType.LEVEL,
-      url,
+      url: levelUrl,
       deliveryDirectives,
       levelOrTrack: levelInfo,
     });
@@ -384,7 +391,8 @@ class PlaylistLoader implements NetworkComponentAPI {
       },
     };
 
-    // Apply L402 Authorization header if token is available
+    // Check for L402 token expiry and apply Authorization header if valid
+    this.hls.checkL402TokenExpiry();
     applyL402Header(context, this.hls.l402Token);
 
     loader.load(context, loaderConfig, loaderCallbacks);
@@ -655,9 +663,11 @@ class PlaylistLoader implements NetworkComponentAPI {
           url: context.url,
           level: levelIndex >= 0 ? levelIndex : undefined,
           networkDetails,
+          maxBandwidth: challenge.maxBandwidth,
+          expiry: challenge.expiry,
         });
         if (levelIndex >= 0) {
-          hls.setL402PendingRetryLevel(levelIndex);
+          hls.setL402PendingChallenge(challenge.macaroon, levelIndex);
         }
       }
       hls.trigger(Events.ERROR, {
