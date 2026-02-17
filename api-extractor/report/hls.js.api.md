@@ -1411,6 +1411,10 @@ export enum ErrorDetails {
     // (undocumented)
     KEY_SYSTEM_STATUS_OUTPUT_RESTRICTED = "keySystemStatusOutputRestricted",
     // (undocumented)
+    L402_PAYMENT_REQUIRED = "l402PaymentRequired",
+    // (undocumented)
+    L402_TOKEN_EXPIRED = "l402TokenExpired",
+    // (undocumented)
     LEVEL_EMPTY_ERROR = "levelEmptyError",
     // (undocumented)
     LEVEL_LOAD_ERROR = "levelLoadError",
@@ -1554,6 +1558,10 @@ export enum Events {
     KEY_LOADED = "hlsKeyLoaded",
     // (undocumented)
     KEY_LOADING = "hlsKeyLoading",
+    // (undocumented)
+    L402_PAYMENT_REQUIRED = "hlsL402PaymentRequired",
+    // (undocumented)
+    L402_TOKEN_UPDATED = "hlsL402TokenUpdated",
     // (undocumented)
     LEVEL_LOADED = "hlsLevelLoaded",
     // (undocumented)
@@ -1906,7 +1914,7 @@ export class Fragment extends BaseSegment {
 //
 // @public (undocumented)
 export class FragmentLoader {
-    constructor(config: HlsConfig);
+    constructor(config: HlsConfig, hls: Hls);
     // (undocumented)
     abort(): void;
     // (undocumented)
@@ -2087,6 +2095,9 @@ class Hls implements HlsEventEmitter {
     get capLevelToPlayerSize(): boolean;
     // Warning: (ae-setter-with-docs) The doc comment for the property "capLevelToPlayerSize" must appear on the getter, not the setter.
     set capLevelToPlayerSize(shouldStartCapping: boolean);
+    // @internal
+    checkL402TokenExpiry(): void;
+    clearL402Token(): void;
     readonly config: HlsConfig;
     // (undocumented)
     createController(ControllerClass: any, components: any): any;
@@ -2121,6 +2132,10 @@ class Hls implements HlsEventEmitter {
     get interstitialsManager(): InterstitialsManager | null;
     static isMSESupported(): boolean;
     static isSupported(): boolean;
+    get l402Duration(): number;
+    set l402Duration(seconds: number);
+    // Warning: (ae-forgotten-export) The symbol "L402Token" needs to be exported by the entry point hls.d.ts
+    get l402Token(): L402Token | null;
     get latency(): number;
     // (undocumented)
     get latestLevelDetails(): LevelDetails | null;
@@ -2189,6 +2204,10 @@ class Hls implements HlsEventEmitter {
     // (undocumented)
     get sessionId(): string;
     setAudioOption(audioOption: MediaPlaylist | AudioSelectionOption | undefined): MediaPlaylist | null;
+    // @internal
+    setL402PendingChallenge(macaroon: string, level: number): void;
+    setL402Preimage(preimage: string): void;
+    setL402Token(credential: string): void;
     setSubtitleOption(subtitleOption: MediaPlaylist | SubtitleSelectionOption | undefined): MediaPlaylist | null;
     get startLevel(): number;
     // Warning: (ae-setter-with-docs) The doc comment for the property "startLevel" must appear on the getter, not the setter.
@@ -2458,6 +2477,14 @@ export interface HlsListeners {
     [Events.KEY_LOADED]: (event: Events.KEY_LOADED, data: KeyLoadedData) => void;
     // (undocumented)
     [Events.KEY_LOADING]: (event: Events.KEY_LOADING, data: KeyLoadingData) => void;
+    // Warning: (ae-forgotten-export) The symbol "L402PaymentRequiredData" needs to be exported by the entry point hls.d.ts
+    //
+    // (undocumented)
+    [Events.L402_PAYMENT_REQUIRED]: (event: Events.L402_PAYMENT_REQUIRED, data: L402PaymentRequiredData) => void;
+    // Warning: (ae-forgotten-export) The symbol "L402TokenUpdatedData" needs to be exported by the entry point hls.d.ts
+    //
+    // (undocumented)
+    [Events.L402_TOKEN_UPDATED]: (event: Events.L402_TOKEN_UPDATED, data: L402TokenUpdatedData) => void;
     // (undocumented)
     [Events.LEVEL_LOADED]: (event: Events.LEVEL_LOADED, data: LevelLoadedData) => void;
     // (undocumented)
@@ -3191,6 +3218,8 @@ export class Level {
     // (undocumented)
     get pathwayId(): string;
     // (undocumented)
+    readonly price: number;
+    // (undocumented)
     realBitrate: number;
     // (undocumented)
     get score(): number;
@@ -3494,6 +3523,8 @@ export interface LevelParsed extends CodecsParsed {
     id?: number;
     // (undocumented)
     name: string;
+    // (undocumented)
+    price?: number;
     // (undocumented)
     supplemental?: CodecsParsed;
     // (undocumented)

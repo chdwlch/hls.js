@@ -3,6 +3,7 @@ import type { LoaderContext } from '../types/loader';
 export type L402Token = {
   credential: string;
   maxBandwidth: number;
+  /** Expiry time in milliseconds (Date.now() units) for comparison */
   expiry?: number;
 };
 
@@ -285,7 +286,8 @@ export function getL402ChallengeFromNetworkDetails(
 
 /**
  * Parse a credential string (macaroon:preimage) and extract maxBandwidth
- * and expiry from the macaroon caveats.
+ * and expiry from the macaroon caveats. Expiry is normalized to milliseconds
+ * (Unix seconds from caveat are converted) so Date.now() comparisons work.
  */
 export function parseL402Credential(credential: string): {
   maxBandwidth: number;
@@ -293,9 +295,14 @@ export function parseL402Credential(credential: string): {
 } {
   const colonIdx = credential.indexOf(':');
   const macaroon = colonIdx > -1 ? credential.slice(0, colonIdx) : credential;
+  let expiry = getExpirationFromMacaroon(macaroon);
+  // L402 caveats use Unix timestamp in seconds; normalize to ms for Date.now()
+  if (expiry > 0 && expiry < 1e12) {
+    expiry *= 1000;
+  }
   return {
     maxBandwidth: getMaxBandwidthFromMacaroon(macaroon),
-    expiry: getExpirationFromMacaroon(macaroon),
+    expiry,
   };
 }
 
