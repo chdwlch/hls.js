@@ -445,7 +445,13 @@ export default class LevelController extends BasePlaylistController {
       lastLevel &&
       lastPathwayId === pathwayId
     ) {
-      return;
+      const levelDetails = level.details;
+      // Skip reload only when we already have valid VOD details for this level.
+      // If details are missing (e.g. previous load failed or was gated), fall through
+      // so loadPlaylist() runs and the level is (re)requested.
+      if (levelDetails && !levelDetails.live) {
+        return;
+      }
     }
 
     this.log(
